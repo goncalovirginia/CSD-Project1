@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Scanner;
@@ -78,9 +78,7 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					System.out.println(extract);
 					break;
 				case "gettotalvalue":
-					List<String> contractList = new ArrayList<>();
-					while (scanner.hasNext())
-						contractList.add(scanner.next());
+					List<String> contractList = Arrays.stream(scanner.nextLine().trim().split(" ")).toList();
 					long totalValue = restClientService.getTotalValue(contractList);
 					System.out.println(totalValue);
 					break;
@@ -102,6 +100,8 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					System.out.println("gettotalvalue <contract1> <contract2> ... <contractN>");
 					System.out.println("getgloballedgervalue");
 					System.out.println("getledger");
+					break;
+				case "quit":
 					break;
 				default:
 					System.out.println("Invalid command.");
