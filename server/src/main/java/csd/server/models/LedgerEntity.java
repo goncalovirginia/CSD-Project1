@@ -60,4 +60,9 @@ public class LedgerEntity {
 		this.publicKey = publicKey;
 	}
 
+	@Override
+	public String toString() {
+		return contract + ":" + value + ":" + publicKey;
+	}
+
 }
