@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Scanner;
 
 @Service
@@ -37,6 +39,8 @@ public class CommandLineApplicationService implements CommandLineRunner {
 		byte[] userID = hashService.hash(email.getBytes(StandardCharsets.UTF_8));
 		System.out.println("UserID: " + Base64.getEncoder().encodeToString(userID));
 
+		System.out.println("Use command 'help' to see all commands");
+
 		String command;
 		do {
 			System.out.print("> ");
@@ -54,8 +58,50 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					break;
 				case "loadmoney":
 					String contract = scanner.next();
-					int value = scanner.nextInt();
+					long value = scanner.nextLong();
 					restClientService.loadMoney(contract, value);
+					break;
+				case "sendtransaction":
+					String originContract = scanner.next();
+					String destinationContract = scanner.next();
+					long value1 = scanner.nextLong();
+					restClientService.sendTransaction(originContract, destinationContract, value1);
+					break;
+				case "getbalance":
+					String contract1 = scanner.next();
+					long balance = restClientService.getBalance(contract1);
+					System.out.println(balance);
+					break;
+				case "getextract":
+					String contract2 = scanner.next();
+					String extract = restClientService.getExtract(contract2);
+					System.out.println(extract);
+					break;
+				case "gettotalvalue":
+					List<String> contractList = new ArrayList<>();
+					while (scanner.hasNext())
+						contractList.add(scanner.next());
+					long totalValue = restClientService.getTotalValue(contractList);
+					System.out.println(totalValue);
+					break;
+				case "getgloballedgervalue":
+					long globalLedgerValue = restClientService.getGlobalLedgerValue();
+					System.out.println(globalLedgerValue);
+					break;
+				case "getledger":
+					List<String> ledger = restClientService.getLedger();
+					for (String row : ledger)
+						System.out.println(row);
+					break;
+				case "help":
+					System.out.println("createcontract");
+					System.out.println("loadmoney <contract> <value>");
+					System.out.println("sendtransaction <originContract> <destinationContract> <value>");
+					System.out.println("getbalance <contract>");
+					System.out.println("getextract <contract>");
+					System.out.println("gettotalvalue <contract1> <contract2> ... <contractN>");
+					System.out.println("getgloballedgervalue");
+					System.out.println("getledger");
 					break;
 				default:
 					System.out.println("Invalid command.");

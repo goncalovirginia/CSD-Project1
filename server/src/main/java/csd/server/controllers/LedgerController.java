@@ -53,7 +53,7 @@ public class LedgerController {
 		return ResponseEntity.noContent().build();
 	}
 
-	@GetMapping(path = "/getBalance", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PostMapping(path = "/getBalance", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Long> getBalance(@RequestBody @Valid GetBalance body) throws IOException {
 		joinPartsAndValidateSignature(body.contract(), body.signature(),
 			Base64.getDecoder().decode(body.contract()));
@@ -62,7 +62,7 @@ public class LedgerController {
 		return ResponseEntity.ok(balance);
 	}
 
-	@GetMapping(path = "/getExtract", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PostMapping(path = "/getExtract", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<String> getExtract(@RequestBody @Valid GetExtract body) throws IOException {
 		joinPartsAndValidateSignature(body.contract(), body.signature(),
 			Base64.getDecoder().decode(body.contract()));
@@ -71,7 +71,7 @@ public class LedgerController {
 		return ResponseEntity.ok(extract);
 	}
 
-	@GetMapping(path = "/getTotalValue", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PostMapping(path = "/getTotalValue", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Long> getTotalValue(@RequestBody @Valid GetTotalValue body) throws IOException {
 		joinPartsAndValidateSignature(body.contracts().getFirst(), body.signature(),
 			body.contracts().stream().map(c -> Base64.getDecoder().decode(c)).toList());
@@ -80,7 +80,7 @@ public class LedgerController {
 		return ResponseEntity.ok(totalValue);
 	}
 
-	@GetMapping(path = "/getGlobalLedgerValue", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PostMapping(path = "/getGlobalLedgerValue", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Long> getGlobalLedgerValue(@RequestBody @Valid GetGlobalLedgerValue body) throws IOException {
 		joinPartsAndValidateSignature(body.contract(), body.signature(),
 			Base64.getDecoder().decode(body.contract()));
@@ -89,7 +89,7 @@ public class LedgerController {
 		return ResponseEntity.ok(globalLedgerValue);
 	}
 
-	@GetMapping(path = "/getLedger", consumes = MediaType.APPLICATION_JSON_VALUE)
+	@PostMapping(path = "/getLedger", consumes = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<List<String>> getLedger(@RequestBody @Valid GetLedger body) throws IOException {
 		joinPartsAndValidateSignature(body.contract(), body.signature(),
 			Base64.getDecoder().decode(body.contract()));
@@ -128,7 +128,7 @@ public class LedgerController {
 			throw new InvalidSignatureException();
 	}
 
-	public byte[] longToBytes(long x) {
+	private byte[] longToBytes(long x) {
 		ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
 		buffer.putLong(x);
 		return buffer.array();
