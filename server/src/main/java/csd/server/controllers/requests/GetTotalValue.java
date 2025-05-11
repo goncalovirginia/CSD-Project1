@@ -5,5 +5,5 @@ import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
-public record GetTotalValue(@NotEmpty List<String> contracts, @NotBlank String signature) {
+public record GetTotalValue(@NotEmpty List<String> contracts, @NotBlank String hmac, @NotBlank String signature) {
 }

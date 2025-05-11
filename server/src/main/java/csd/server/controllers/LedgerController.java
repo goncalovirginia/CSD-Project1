@@ -2,8 +2,11 @@ package csd.server.controllers;
 
 import csd.server.controllers.requests.*;
 import csd.server.controllers.responses.CreatedContract;
+import csd.server.exceptions.InvalidHmacException;
 import csd.server.exceptions.InvalidSignatureException;
+import csd.server.models.LedgerEntity;
 import csd.server.services.DigitalSignatureService;
+import csd.server.services.HMACService;
 import csd.server.services.LedgerService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -17,6 +20,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.Base64;
 import java.util.List;
 
@@ -25,109 +31,110 @@ import java.util.List;
 public class LedgerController {
 
 	private final LedgerService ledgerService;
+	private final HMACService hmacService;
 
-	public LedgerController(LedgerService ledgerService, DigitalSignatureService digitalSignatureService) {
+	public LedgerController(LedgerService ledgerService, HMACService hmacService) {
 		this.ledgerService = ledgerService;
+		this.hmacService = hmacService;
 	}
 
 	@PostMapping(path = "/createContract", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<CreatedContract> createContract(@RequestBody @Valid CreateContract body) {
-		validateSignature(body.contract(), body.signature(), body.publicKey());
+	public ResponseEntity<CreatedContract> createContract(@RequestBody @Valid CreateContract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(body.hmacKey()), Base64.getDecoder().decode(body.publicKey())));
+		validateHmac(message, body.hmac(), body.hmacKey());
+		validateSignature(message, body.signature(), body.publicKey());
 
-		ledgerService.createContract(body.contract(), body.publicKey());
+		ledgerService.createContract(body.contract(), body.hmacKey(), body.publicKey());
 		return ResponseEntity.ok(new CreatedContract(body.contract()));
 	}
 
 	@PostMapping(path = "/loadMoney", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Void> loadMoney(@RequestBody @Valid LoadMoney body) throws IOException {
-		joinPartsAndValidateSignature(body.contract(), body.signature(),
-			Base64.getDecoder().decode(body.contract()), longToBytes(body.value()));
+	public ResponseEntity<Void> loadMoney(@RequestBody @Valid LoadMoney body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), longToBytes(body.value())));
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		ledgerService.loadMoney(body.contract(), body.value());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping(path = "/sendTransaction", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Void> sendTransaction(@RequestBody @Valid SendTransaction body) throws IOException {
-		joinPartsAndValidateSignature(body.originContract(), body.signature(),
-			Base64.getDecoder().decode(body.originContract()), Base64.getDecoder().decode(body.destinationContract()), longToBytes(body.value()), body.nonce().getBytes(StandardCharsets.UTF_8));
+	public ResponseEntity<Void> sendTransaction(@RequestBody @Valid SendTransaction body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.originContract()), Base64.getDecoder().decode(body.destinationContract()), longToBytes(body.value()), body.nonce().getBytes(StandardCharsets.UTF_8)));
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.originContract());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		ledgerService.sendTransaction(body.originContract(), body.destinationContract(), body.value());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping(path = "/getBalance", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Long> getBalance(@RequestBody @Valid GetBalance body) throws IOException {
-		joinPartsAndValidateSignature(body.contract(), body.signature(),
-			Base64.getDecoder().decode(body.contract()));
+	public ResponseEntity<Long> getBalance(@RequestBody @Valid GetBalance body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		long balance = ledgerService.getBalance(body.contract());
 		return ResponseEntity.ok(balance);
 	}
 
 	@PostMapping(path = "/getExtract", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<String> getExtract(@RequestBody @Valid GetExtract body) throws IOException {
-		joinPartsAndValidateSignature(body.contract(), body.signature(),
-			Base64.getDecoder().decode(body.contract()));
+	public ResponseEntity<String> getExtract(@RequestBody @Valid GetExtract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		String extract = ledgerService.getExtract(body.contract());
 		return ResponseEntity.ok(extract);
 	}
 
 	@PostMapping(path = "/getTotalValue", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Long> getTotalValue(@RequestBody @Valid GetTotalValue body) throws IOException {
-		joinPartsAndValidateSignature(body.contracts().getFirst(), body.signature(),
-			body.contracts().stream().map(c -> Base64.getDecoder().decode(c)).toList());
+	public ResponseEntity<Long> getTotalValue(@RequestBody @Valid GetTotalValue body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(body.contracts().stream().map(c -> Base64.getDecoder().decode(c)).toList());
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contracts().getFirst());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		long totalValue = ledgerService.getTotalValue(body.contracts());
 		return ResponseEntity.ok(totalValue);
 	}
 
 	@PostMapping(path = "/getGlobalLedgerValue", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Long> getGlobalLedgerValue(@RequestBody @Valid GetGlobalLedgerValue body) throws IOException {
-		joinPartsAndValidateSignature(body.contract(), body.signature(),
-			Base64.getDecoder().decode(body.contract()));
+	public ResponseEntity<Long> getGlobalLedgerValue(@RequestBody @Valid GetGlobalLedgerValue body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		long globalLedgerValue = ledgerService.getGlobalLedgerValue();
 		return ResponseEntity.ok(globalLedgerValue);
 	}
 
 	@PostMapping(path = "/getLedger", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<List<String>> getLedger(@RequestBody @Valid GetLedger body) throws IOException {
-		joinPartsAndValidateSignature(body.contract(), body.signature(),
-			Base64.getDecoder().decode(body.contract()));
+	public ResponseEntity<List<String>> getLedger(@RequestBody @Valid GetLedger body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
+		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
+		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
+		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		List<String> ledger = ledgerService.getLedger();
 		return ResponseEntity.ok(ledger);
 	}
 
-	private void joinPartsAndValidateSignature(String contract, String signature, byte[]... parts) throws IOException {
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		for (byte[] part : parts)
-			byteArrayOutputStream.write(part);
-		String message = Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
-		getPublicKeyAndValidateSignature(message, signature, contract);
+	private void validateHmac(byte[] message, String hmac, String hmacKey) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		if (!hmacService.validateHmac(message, Base64.getDecoder().decode(hmac), hmacKey))
+			throw new InvalidHmacException();
 	}
 
-	private void joinPartsAndValidateSignature(String contract, String signature, List<byte[]> parts) throws IOException {
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		for (byte[] part : parts)
-			byteArrayOutputStream.write(part);
-		String message = Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
-		getPublicKeyAndValidateSignature(message, signature, contract);
-	}
-
-	private void getPublicKeyAndValidateSignature(String content, String signature, String contract) {
-		String publicKey = ledgerService.getContractPublicKey(contract);
-		validateSignature(content, signature, publicKey);
-	}
-
-	private void validateSignature(String content, String signature, String publicKey) {
-		byte[] contentBytes = Base64.getDecoder().decode(content);
+	private void validateSignature(byte[] message, String signature, String publicKey) {
 		byte[] signatureBytes = Base64.getDecoder().decode(signature);
 		byte[] publicKeyBytes = Base64.getDecoder().decode(publicKey);
 
-		if (!DigitalSignatureService.validateSignature(contentBytes, signatureBytes, publicKeyBytes))
+		if (!DigitalSignatureService.validateSignature(message, signatureBytes, publicKeyBytes))
 			throw new InvalidSignatureException();
 	}
 
@@ -135,6 +142,13 @@ public class LedgerController {
 		ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
 		buffer.putLong(x);
 		return buffer.array();
+	}
+
+	private byte[] appendByteArrays(List<byte[]> fields) throws IOException {
+		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+		for (byte[] field : fields)
+			byteArrayOutputStream.write(field);
+		return byteArrayOutputStream.toByteArray();
 	}
 
 }

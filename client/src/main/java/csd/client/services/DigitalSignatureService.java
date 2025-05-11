@@ -36,6 +36,16 @@ public class DigitalSignatureService {
 		}
 	}
 
+	public static String signToBase64(byte[] messageBytes, String privateKeyBase64) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, SignatureException {
+		KeyFactory kf = KeyFactory.getInstance("EC", "BC");
+		PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(privateKeyBase64)));
+		Signature signature = Signature.getInstance("SHA256withECDSA", "BC");
+
+		signature.initSign(privateKey, new SecureRandom());
+		signature.update(messageBytes);
+		return Base64.getEncoder().encodeToString(signature.sign());
+	}
+
 	public static boolean validateSignature(byte[] messageBytes, byte[] signatureBytes, byte[] senderPublicKeyBytes) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, SignatureException {
 		KeyFactory kf = KeyFactory.getInstance("EC", "BC");
 		PublicKey senderPublicKey = kf.generatePublic(new X509EncodedKeySpec(senderPublicKeyBytes));
@@ -52,27 +62,10 @@ public class DigitalSignatureService {
 		return signature.sign();
 	}
 
-	public String signBase64(String messageBase64) throws InvalidKeyException, SignatureException {
-		signature.initSign(privateKey, new SecureRandom());
-		signature.update(Base64.getDecoder().decode(messageBase64));
-		return Base64.getEncoder().encodeToString(signature.sign());
-	}
-
-	public String signBase64(String messageBase64, String privateKeyBase64) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, InvalidKeyException, SignatureException {
-		KeyFactory kf = KeyFactory.getInstance("EC", "BC");
-		PrivateKey privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(privateKeyBase64)));
-		Signature signature = Signature.getInstance("SHA256withECDSA", "BC");
-
-		signature.initSign(privateKey, new SecureRandom());
-		signature.update(Base64.getDecoder().decode(messageBase64));
-		return Base64.getEncoder().encodeToString(signature.sign());
-	}
-
 	public boolean validateSignature(byte[] messageBytes, byte[] signatureBytes) throws InvalidKeyException, SignatureException {
 		signature.initVerify(publicKey);
 		signature.update(messageBytes);
 		return signature.verify(signatureBytes);
 	}
-
 
 }

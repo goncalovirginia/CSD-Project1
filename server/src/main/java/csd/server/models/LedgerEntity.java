@@ -16,10 +16,14 @@ public class LedgerEntity {
 	private long value;
 
 	@Column(nullable = false)
+	private String hmacKey;
+
+	@Column(nullable = false)
 	private String publicKey;
 
-	public LedgerEntity(String contract, String publicKey) {
+	public LedgerEntity(String contract, String hmacKey, String publicKey) {
 		this.contract = contract;
+		this.hmacKey = hmacKey;
 		this.publicKey = publicKey;
 		this.value = 0;
 	}
@@ -50,6 +54,14 @@ public class LedgerEntity {
 
 	public void setValue(long value) {
 		this.value = value;
+	}
+
+	public String getHmacKey() {
+		return hmacKey;
+	}
+
+	public void setHmacKey(String hmacKey) {
+		this.hmacKey = hmacKey;
 	}
 
 	public String getPublicKey() {

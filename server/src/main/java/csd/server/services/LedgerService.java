@@ -19,15 +19,15 @@ public class LedgerService {
 		this.ledgerRepository = ledgerRepository;
 	}
 
-	public String getContractPublicKey(String contract) {
-		return ledgerRepository.getLedgerByContract(contract).orElseThrow(ContractDoesNotExistException::new).getPublicKey();
+	public LedgerEntity getLedgerEntity(String contract) {
+		return ledgerRepository.getLedgerByContract(contract).orElseThrow(ContractDoesNotExistException::new);
 	}
 
-	public void createContract(String contract, String publicKey) {
+	public void createContract(String contract, String hmacKey, String publicKey) {
 		if (ledgerRepository.existsByContract(contract))
 			throw new ContractAlreadyExistsException();
 
-		ledgerRepository.save(new LedgerEntity(contract, publicKey));
+		ledgerRepository.save(new LedgerEntity(contract, hmacKey, publicKey));
 	}
 
 	public void loadMoney(String contract, Long value) {
