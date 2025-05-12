@@ -8,6 +8,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.util.Arrays;
 import java.util.Base64;
 
 @Service
@@ -28,6 +29,10 @@ public class HMACService {
 
 	public String hashToBase64(byte[] data) {
 		return Base64.getEncoder().encodeToString(hash(data));
+	}
+
+	public boolean validateHmac(byte[] data, byte[] hmac) {
+		return Arrays.equals(hash(data), hmac);
 	}
 
 	public int getIntegrityLength() {

@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.SignatureException;
 import java.util.Base64;
 import java.util.List;
 
@@ -32,20 +33,25 @@ public class LedgerController {
 
 	private final LedgerService ledgerService;
 	private final HMACService hmacService;
+	private final DigitalSignatureService digitalSignatureService;
 
-	public LedgerController(LedgerService ledgerService, HMACService hmacService) {
+	public LedgerController(LedgerService ledgerService, HMACService hmacService, DigitalSignatureService digitalSignatureService) {
 		this.ledgerService = ledgerService;
 		this.hmacService = hmacService;
+		this.digitalSignatureService = digitalSignatureService;
 	}
 
 	@PostMapping(path = "/createContract", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<CreatedContract> createContract(@RequestBody @Valid CreateContract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<CreatedContract> createContract(@RequestBody @Valid CreateContract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(body.hmacKey()), Base64.getDecoder().decode(body.publicKey())));
 		validateHmac(message, body.hmac(), body.hmacKey());
 		validateSignature(message, body.signature(), body.publicKey());
 
 		ledgerService.createContract(body.contract(), body.hmacKey(), body.publicKey());
-		return ResponseEntity.ok(new CreatedContract(body.contract()));
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(digitalSignatureService.getPublicKeyBase64())));
+		String hmac = hmacService.hashToBase64(response, body.hmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+		return ResponseEntity.ok(new CreatedContract(body.contract(), digitalSignatureService.getPublicKeyBase64(), hmac, signature));
 	}
 
 	@PostMapping(path = "/loadMoney", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -28,10 +28,16 @@ public class HMACService {
 		return mac.doFinal(data);
 	}
 
-	private byte[] hash(byte[] data, String keyBase64) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public byte[] hash(byte[] data, String keyBase64) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
 		Mac mac = Mac.getInstance(this.algorithm, "BC");
 		mac.init(new SecretKeySpec(Base64.getDecoder().decode(keyBase64), this.algorithm));
 		return mac.doFinal(data);
+	}
+
+	public String hashToBase64(byte[] data, String keyBase64) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+		Mac mac = Mac.getInstance(this.algorithm, "BC");
+		mac.init(new SecretKeySpec(Base64.getDecoder().decode(keyBase64), this.algorithm));
+		return Base64.getEncoder().encodeToString(mac.doFinal(data));
 	}
 
 	public boolean validateHmac(byte[] data, byte[] hmac, String keyBase64) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {

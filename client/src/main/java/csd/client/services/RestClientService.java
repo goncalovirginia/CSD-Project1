@@ -1,6 +1,9 @@
 package csd.client.services;
 
 import csd.client.controllers.requests.*;
+import csd.client.controllers.responses.CreatedContract;
+import csd.client.exceptions.InvalidHmacException;
+import csd.client.exceptions.InvalidSignatureException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,8 @@ public class RestClientService {
 	private final File contractsKeysFile;
 	private final Map<String, List<String>> contractsKeysMap;
 
+	private String ledgerPublicKey;
+
 	public RestClientService(RestClient restClient, HMACService hmacService, DigitalSignatureService digitalSignatureService, ResourceLoader resourceLoader, @Value("${ledger.address}") String ledgerAddress) throws IOException {
 		this.restClient = restClient;
 		this.hmacService = hmacService;
@@ -42,9 +47,9 @@ public class RestClientService {
 		}
 	}
 
-	public void createContract(String contract) throws SignatureException, InvalidKeyException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException, IOException {
+	public String createContract(String contract) throws SignatureException, InvalidKeyException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException, IOException {
 		KeyPair keyPair = DigitalSignatureService.generateKeyPair();
-		if (keyPair == null) return;
+		if (keyPair == null) return null;
 
 		String privateKeyBase64 = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
 		String publicKeyBase64 = Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
@@ -59,7 +64,15 @@ public class RestClientService {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(contract), Base64.getDecoder().decode(hmacService.getKeyBase64()), Base64.getDecoder().decode(publicKeyBase64)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(contract, message);
-		restClient.post().uri(ledgerAddress + "/ledger/createContract").body(new CreateContract(contract, hmacService.getKeyBase64(), publicKeyBase64, hmac, signature)).retrieve().toBodilessEntity().getStatusCode().is2xxSuccessful();
+		CreatedContract response = restClient.post().uri(ledgerAddress + "/ledger/createContract").body(new CreateContract(contract, hmacService.getKeyBase64(), publicKeyBase64, hmac, signature)).retrieve().body(CreatedContract.class);
+		byte[] responseBytes = appendByteArrays(List.of(Base64.getDecoder().decode(response.contract()), Base64.getDecoder().decode(response.publicKey())));
+
+		this.ledgerPublicKey = response.publicKey();
+
+		validateHmac(responseBytes, response.hmac());
+		validateSignature(responseBytes, response.signature(), ledgerPublicKey);
+
+		return response.contract();
 	}
 
 	public void loadMoney(String contract, long value) throws SignatureException, InvalidKeyException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException, IOException {
@@ -125,6 +138,19 @@ public class RestClientService {
 		for (byte[] field : fields)
 			byteArrayOutputStream.write(field);
 		return byteArrayOutputStream.toByteArray();
+	}
+
+	private void validateHmac(byte[] message, String hmac) {
+		if (!hmacService.validateHmac(message, Base64.getDecoder().decode(hmac)))
+			throw new InvalidHmacException();
+	}
+
+	private void validateSignature(byte[] message, String signature, String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
+		byte[] signatureBytes = Base64.getDecoder().decode(signature);
+		byte[] publicKeyBytes = Base64.getDecoder().decode(publicKey);
+
+		if (!DigitalSignatureService.validateSignature(message, signatureBytes, publicKeyBytes))
+			throw new InvalidSignatureException();
 	}
 
 	private String buildSignature(String contract, byte[] message) throws NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {

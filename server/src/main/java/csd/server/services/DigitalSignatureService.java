@@ -14,12 +14,14 @@ import java.util.Base64;
 public class DigitalSignatureService {
 
 	private final PrivateKey privateKey;
+	private final String publicKeyBase64;
 	private final PublicKey publicKey;
 	private final Signature signature;
 
 	public DigitalSignatureService(@Value("${crypto.dsa.privateKeyBase64}") String privateKeyBase64, @Value("${crypto.dsa.publicKeyBase64}") String publicKeyBase64) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
 		KeyFactory kf = KeyFactory.getInstance("EC", "BC");
 		privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(privateKeyBase64)));
+		this.publicKeyBase64 = publicKeyBase64;
 		publicKey = kf.generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(publicKeyBase64)));
 		signature = Signature.getInstance("SHA256withECDSA", "BC");
 	}
@@ -58,15 +60,19 @@ public class DigitalSignatureService {
 		System.out.println("Public key: " + Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded()));
 	}
 
+	public String getPublicKeyBase64() {
+		return publicKeyBase64;
+	}
+
 	public byte[] sign(byte[] messageBytes) throws InvalidKeyException, SignatureException {
 		signature.initSign(privateKey, new SecureRandom());
 		signature.update(messageBytes);
 		return signature.sign();
 	}
 
-	public String signBase64(String messageBase64) throws InvalidKeyException, SignatureException {
+	public String signToBase64(byte[] messageBytes) throws InvalidKeyException, SignatureException {
 		signature.initSign(privateKey, new SecureRandom());
-		signature.update(Base64.getDecoder().decode(messageBase64));
+		signature.update(messageBytes);
 		return Base64.getEncoder().encodeToString(signature.sign());
 	}
 

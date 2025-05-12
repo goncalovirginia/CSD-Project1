@@ -39,7 +39,7 @@ public class CommandLineApplicationService implements CommandLineRunner {
 		byte[] userID = hashService.hash(email.getBytes(StandardCharsets.UTF_8));
 		System.out.println("UserID: " + Base64.getEncoder().encodeToString(userID));
 
-		System.out.println("Use command 'help' to see all commands");
+		System.out.println("Use command 'help' to see all commands, and 'quit' to exit the application.");
 
 		String command;
 		do {
@@ -54,7 +54,8 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					byte[] newContract = hmacService.hash(userIDAndTimestamp.toByteArray());
 					String contractBase64 = Base64.getEncoder().encodeToString(newContract);
 					System.out.println("New Contract: " + contractBase64);
-					restClientService.createContract(contractBase64);
+					String response = restClientService.createContract(contractBase64);
+					System.out.println(response == null ? "Error: null response" : "Contract " + response + " successfully created.");
 					break;
 				case "loadmoney":
 					String contract = scanner.next();
@@ -100,6 +101,7 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					System.out.println("gettotalvalue <contract1> <contract2> ... <contractN>");
 					System.out.println("getgloballedgervalue");
 					System.out.println("getledger");
+					System.out.println("quit");
 					break;
 				case "quit":
 					break;
