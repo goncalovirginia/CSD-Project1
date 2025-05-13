@@ -4,7 +4,6 @@ import csd.client.controllers.requests.*;
 import csd.client.controllers.responses.CreatedContract;
 import csd.client.exceptions.InvalidHmacException;
 import csd.client.exceptions.InvalidSignatureException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ResourceUtils;
@@ -26,17 +25,15 @@ public class RestClientService {
 
 	private final RestClient restClient;
 	private final HMACService hmacService;
-	private final String ledgerAddress;
 
 	private final File contractsKeysFile;
 	private final Map<String, List<String>> contractsKeysMap;
 
 	private String ledgerPublicKey;
 
-	public RestClientService(RestClient restClient, HMACService hmacService, DigitalSignatureService digitalSignatureService, ResourceLoader resourceLoader, @Value("${ledger.address}") String ledgerAddress) throws IOException {
+	public RestClientService(RestClient restClient, HMACService hmacService, DigitalSignatureService digitalSignatureService, ResourceLoader resourceLoader) throws IOException {
 		this.restClient = restClient;
 		this.hmacService = hmacService;
-		this.ledgerAddress = ledgerAddress;
 
 		this.contractsKeysFile = ResourceUtils.getFile("classpath:contract-public-private-keys.txt");
 		List<String> contractsKeysList = Files.readAllLines(contractsKeysFile.toPath());
@@ -64,7 +61,7 @@ public class RestClientService {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(contract), Base64.getDecoder().decode(hmacService.getKeyBase64()), Base64.getDecoder().decode(publicKeyBase64)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(contract, message);
-		CreatedContract response = restClient.post().uri(ledgerAddress + "/ledger/createContract").body(new CreateContract(contract, hmacService.getKeyBase64(), publicKeyBase64, hmac, signature)).retrieve().body(CreatedContract.class);
+		CreatedContract response = restClient.post().uri("/ledger/createContract").body(new CreateContract(contract, hmacService.getKeyBase64(), publicKeyBase64, hmac, signature)).retrieve().body(CreatedContract.class);
 		byte[] responseBytes = appendByteArrays(List.of(Base64.getDecoder().decode(response.contract()), Base64.getDecoder().decode(response.publicKey())));
 
 		this.ledgerPublicKey = response.publicKey();
@@ -79,7 +76,7 @@ public class RestClientService {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(contract), longToBytes(value)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(contract, message);
-		restClient.post().uri(ledgerAddress + "/ledger/loadMoney").body(new LoadMoney(contract, value, hmac, signature)).retrieve().toBodilessEntity().getStatusCode().is2xxSuccessful();
+		restClient.post().uri("/ledger/loadMoney").body(new LoadMoney(contract, value, hmac, signature)).retrieve().toBodilessEntity().getStatusCode().is2xxSuccessful();
 	}
 
 	public void sendTransaction(String originContract, String destinationContract, Long value) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
@@ -87,28 +84,28 @@ public class RestClientService {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(originContract), Base64.getDecoder().decode(destinationContract), longToBytes(value), nonce.getBytes(StandardCharsets.UTF_8)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(originContract, message);
-		restClient.post().uri(ledgerAddress + "/ledger/sendTransaction").body(new SendTransaction(originContract, destinationContract, value, nonce, hmac, signature)).retrieve().toBodilessEntity().getStatusCode().is2xxSuccessful();
+		restClient.post().uri("/ledger/sendTransaction").body(new SendTransaction(originContract, destinationContract, value, nonce, hmac, signature)).retrieve().toBodilessEntity().getStatusCode().is2xxSuccessful();
 	}
 
 	public long getBalance(String contract) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(contract)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(contract, message);
-		return restClient.post().uri(ledgerAddress + "/ledger/getBalance").body(new GetBalance(contract, hmac, signature)).retrieve().body(Long.class);
+		return restClient.post().uri("/ledger/getBalance").body(new GetBalance(contract, hmac, signature)).retrieve().body(Long.class);
 	}
 
 	public String getExtract(String contract) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(contract)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(contract, message);
-		return restClient.post().uri(ledgerAddress + "/ledger/getExtract").body(new GetExtract(contract, hmac, signature)).retrieve().body(String.class);
+		return restClient.post().uri("/ledger/getExtract").body(new GetExtract(contract, hmac, signature)).retrieve().body(String.class);
 	}
 
 	public long getTotalValue(List<String> contracts) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
 		byte[] message = appendByteArrays(contracts.stream().map(c -> Base64.getDecoder().decode(c)).toList());
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(contracts.getFirst(), message);
-		return restClient.post().uri(ledgerAddress + "/ledger/getTotalValue").body(new GetTotalValue(contracts, hmac, signature)).retrieve().body(Long.class);
+		return restClient.post().uri("/ledger/getTotalValue").body(new GetTotalValue(contracts, hmac, signature)).retrieve().body(Long.class);
 	}
 
 	public long getGlobalLedgerValue() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
@@ -116,7 +113,7 @@ public class RestClientService {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(firstContract)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(firstContract, message);
-		return restClient.post().uri(ledgerAddress + "/ledger/getGlobalLedgerValue").body(new GetGlobalLedgerValue(firstContract, hmac, signature)).retrieve().body(Long.class);
+		return restClient.post().uri("/ledger/getGlobalLedgerValue").body(new GetGlobalLedgerValue(firstContract, hmac, signature)).retrieve().body(Long.class);
 	}
 
 	public List<String> getLedger() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, SignatureException, NoSuchProviderException, InvalidKeyException {
@@ -124,7 +121,7 @@ public class RestClientService {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(firstContract)));
 		String hmac = hmacService.hashToBase64(message);
 		String signature = buildSignature(firstContract, message);
-		return restClient.post().uri(ledgerAddress + "/ledger/getLedger").body(new GetLedger(firstContract, hmac, signature)).retrieve().body(List.class);
+		return restClient.post().uri("/ledger/getLedger").body(new GetLedger(firstContract, hmac, signature)).retrieve().body(List.class);
 	}
 
 	private byte[] longToBytes(long x) {
