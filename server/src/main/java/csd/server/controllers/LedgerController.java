@@ -1,9 +1,10 @@
 package csd.server.controllers;
 
 import csd.server.controllers.requests.*;
-import csd.server.controllers.responses.CreatedContract;
+import csd.server.controllers.responses.*;
 import csd.server.exceptions.InvalidHmacException;
 import csd.server.exceptions.InvalidSignatureException;
+import csd.server.exceptions.NonceReplayException;
 import csd.server.models.LedgerEntity;
 import csd.server.services.DigitalSignatureService;
 import csd.server.services.HMACService;
@@ -25,7 +26,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SignatureException;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/ledger")
@@ -34,11 +37,13 @@ public class LedgerController {
 	private final LedgerService ledgerService;
 	private final HMACService hmacService;
 	private final DigitalSignatureService digitalSignatureService;
+	private final Set<String> nonces;
 
 	public LedgerController(LedgerService ledgerService, HMACService hmacService, DigitalSignatureService digitalSignatureService) {
 		this.ledgerService = ledgerService;
 		this.hmacService = hmacService;
 		this.digitalSignatureService = digitalSignatureService;
+		this.nonces = new HashSet<>();
 	}
 
 	@PostMapping(path = "/createContract", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -48,87 +53,127 @@ public class LedgerController {
 		validateSignature(message, body.signature(), body.publicKey());
 
 		ledgerService.createContract(body.contract(), body.hmacKey(), body.publicKey());
+
 		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(digitalSignatureService.getPublicKeyBase64())));
 		String hmac = hmacService.hashToBase64(response, body.hmacKey());
 		String signature = digitalSignatureService.signToBase64(response);
+
 		return ResponseEntity.ok(new CreatedContract(body.contract(), digitalSignatureService.getPublicKeyBase64(), hmac, signature));
 	}
 
 	@PostMapping(path = "/loadMoney", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Void> loadMoney(@RequestBody @Valid LoadMoney body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<LoadedMoney> loadMoney(@RequestBody @Valid LoadMoney body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), longToBytes(body.value())));
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		ledgerService.loadMoney(body.contract(), body.value());
-		return ResponseEntity.noContent().build();
+
+		byte[] response = message.clone();
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new LoadedMoney(body.contract(), body.value(), hmac, signature));
 	}
 
 	@PostMapping(path = "/sendTransaction", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Void> sendTransaction(@RequestBody @Valid SendTransaction body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<SentTransaction> sendTransaction(@RequestBody @Valid SendTransaction body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
+		if (!nonces.add(body.nonce()))
+			throw new NonceReplayException();
+
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.originContract()), Base64.getDecoder().decode(body.destinationContract()), longToBytes(body.value()), body.nonce().getBytes(StandardCharsets.UTF_8)));
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.originContract());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		ledgerService.sendTransaction(body.originContract(), body.destinationContract(), body.value());
-		return ResponseEntity.noContent().build();
+
+		byte[] response = message.clone();
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new SentTransaction(body.originContract(), body.destinationContract(), body.value(), body.nonce(), hmac, signature));
 	}
 
 	@PostMapping(path = "/getBalance", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Long> getBalance(@RequestBody @Valid GetBalance body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<GotBalance> getBalance(@RequestBody @Valid GetBalance body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		long balance = ledgerService.getBalance(body.contract());
-		return ResponseEntity.ok(balance);
+
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), longToBytes(balance)));
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new GotBalance(body.contract(), balance, hmac, signature));
 	}
 
 	@PostMapping(path = "/getExtract", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<String> getExtract(@RequestBody @Valid GetExtract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<GotExtract> getExtract(@RequestBody @Valid GetExtract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		String extract = ledgerService.getExtract(body.contract());
-		return ResponseEntity.ok(extract);
+
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(extract)));
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new GotExtract(body.contract(), extract, hmac, signature));
 	}
 
 	@PostMapping(path = "/getTotalValue", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Long> getTotalValue(@RequestBody @Valid GetTotalValue body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<GotTotalValue> getTotalValue(@RequestBody @Valid GetTotalValue body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(body.contracts().stream().map(c -> Base64.getDecoder().decode(c)).toList());
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contracts().getFirst());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		long totalValue = ledgerService.getTotalValue(body.contracts());
-		return ResponseEntity.ok(totalValue);
+
+		byte[] response = appendByteArrays(List.of(message, longToBytes(totalValue)));
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new GotTotalValue(body.contracts(), totalValue, hmac, signature));
 	}
 
 	@PostMapping(path = "/getGlobalLedgerValue", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<Long> getGlobalLedgerValue(@RequestBody @Valid GetGlobalLedgerValue body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<GotGlobalLedgerValue> getGlobalLedgerValue(@RequestBody @Valid GetGlobalLedgerValue body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		long globalLedgerValue = ledgerService.getGlobalLedgerValue();
-		return ResponseEntity.ok(globalLedgerValue);
+
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), longToBytes(globalLedgerValue)));
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new GotGlobalLedgerValue(body.contract(), globalLedgerValue, hmac, signature));
 	}
 
 	@PostMapping(path = "/getLedger", consumes = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<List<String>> getLedger(@RequestBody @Valid GetLedger body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
+	public ResponseEntity<GotLedger> getLedger(@RequestBody @Valid GetLedger body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
 		LedgerEntity ledgerEntity = ledgerService.getLedgerEntity(body.contract());
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
 		List<String> ledger = ledgerService.getLedger();
-		return ResponseEntity.ok(ledger);
+
+		byte[] response = appendByteArrays(List.of(message, appendByteArrays(ledger.stream().map(line -> Base64.getDecoder().decode(line)).toList())));
+		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
+		String signature = digitalSignatureService.signToBase64(response);
+
+		return ResponseEntity.ok(new GotLedger(body.contract(), ledger, hmac, signature));
 	}
 
 	private void validateHmac(byte[] message, String hmac, String hmacKey) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException {
