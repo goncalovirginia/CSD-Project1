@@ -55,42 +55,52 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					String contractBase64 = Base64.getEncoder().encodeToString(newContract);
 					System.out.println("New Contract: " + contractBase64);
 					String response = restClientService.createContract(contractBase64);
-					System.out.println(response == null ? "Error: null response" : "Contract " + response + " successfully created.");
+					System.out.println(response == null ? "Error: null response" : "Successfully created contract " + response);
 					break;
 				case "loadmoney":
 					String contract = scanner.next();
 					long value = scanner.nextLong();
-					restClientService.loadMoney(contract, value);
+					long response1 = restClientService.loadMoney(contract, value);
+					System.out.println(response1 == Long.MIN_VALUE ? "Error: null response" : "Successfully loaded " + response1 + " into contract " + contract);
 					break;
 				case "sendtransaction":
 					String originContract = scanner.next();
 					String destinationContract = scanner.next();
 					long value1 = scanner.nextLong();
-					restClientService.sendTransaction(originContract, destinationContract, value1);
+					long response2 = restClientService.sendTransaction(originContract, destinationContract, value1);
+					System.out.println(response2 == Long.MIN_VALUE ? "Error: null response" : "Successfully sent " + response2 + " from " + originContract + " to " + destinationContract);
 					break;
 				case "getbalance":
 					String contract1 = scanner.next();
 					long balance = restClientService.getBalance(contract1);
-					System.out.println(balance);
+					System.out.println(balance == Long.MIN_VALUE ? "Error: null response" : "Current contract balance: " + balance);
 					break;
 				case "getextract":
 					String contract2 = scanner.next();
 					String extract = restClientService.getExtract(contract2);
-					System.out.println(extract);
+					String[] parts = extract.split(":");
+					System.out.println("Contract: " + parts[0] + "    Balance: " + parts[1] + "    Public Key: " + parts[2]);
 					break;
 				case "gettotalvalue":
 					List<String> contractList = Arrays.stream(scanner.nextLine().trim().split(" ")).toList();
 					long totalValue = restClientService.getTotalValue(contractList);
-					System.out.println(totalValue);
+					System.out.println(totalValue == Long.MIN_VALUE ? "Error: null response" : "Total value of requested contracts: " + totalValue);
 					break;
 				case "getgloballedgervalue":
 					long globalLedgerValue = restClientService.getGlobalLedgerValue();
-					System.out.println(globalLedgerValue);
+					System.out.println(globalLedgerValue == Long.MIN_VALUE ? "Error: null response" : "Global ledger value: " + globalLedgerValue);
 					break;
 				case "getledger":
 					List<String> ledger = restClientService.getLedger();
-					for (String row : ledger)
-						System.out.println(row);
+					if (ledger == null)
+						System.out.println("Error: null response");
+					else {
+						System.out.println("Current ledger:");
+						for (String row : ledger) {
+							String[] parts1 = row.split(":");
+							System.out.println("Contract: " + parts1[0] + "    Balance: " + parts1[1] + "    Public Key: " + parts1[2]);
+						}
+					}
 					break;
 				case "help":
 					System.out.println("createcontract");

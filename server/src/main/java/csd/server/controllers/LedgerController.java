@@ -121,7 +121,7 @@ public class LedgerController {
 
 		String extract = ledgerService.getExtract(body.contract());
 
-		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(extract)));
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getEncoder().encode(extract.getBytes(StandardCharsets.UTF_8))));
 		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
 		String signature = digitalSignatureService.signToBase64(response);
 
@@ -169,7 +169,7 @@ public class LedgerController {
 
 		List<String> ledger = ledgerService.getLedger();
 
-		byte[] response = appendByteArrays(List.of(message, appendByteArrays(ledger.stream().map(line -> Base64.getDecoder().decode(line)).toList())));
+		byte[] response = appendByteArrays(List.of(message, appendByteArrays(ledger.stream().map(line -> Base64.getEncoder().encode(line.getBytes(StandardCharsets.UTF_8))).toList())));
 		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
 		String signature = digitalSignatureService.signToBase64(response);
 
