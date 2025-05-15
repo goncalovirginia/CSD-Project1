@@ -44,6 +44,10 @@ public class RestClientService {
 		}
 	}
 
+	public String getLedgerPublicKey() {
+		return ledgerPublicKey = restClient.get().uri("/ledger/publicKey").retrieve().body(String.class);
+	}
+
 	public String createContract(String contract) throws SignatureException, InvalidKeyException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException, IOException {
 		KeyPair keyPair = DigitalSignatureService.generateKeyPair();
 		if (keyPair == null) return null;
@@ -64,9 +68,7 @@ public class RestClientService {
 		CreatedContract response = restClient.post().uri("/ledger/createContract").body(new CreateContract(contract, hmacService.getKeyBase64(), publicKeyBase64, hmac, signature)).retrieve().body(CreatedContract.class);
 		if (response == null) return null;
 
-		this.ledgerPublicKey = response.publicKey();
-
-		byte[] responseBytes = appendByteArrays(List.of(Base64.getDecoder().decode(response.contract()), Base64.getDecoder().decode(response.publicKey())));
+		byte[] responseBytes = appendByteArrays(List.of(Base64.getDecoder().decode(response.contract())));
 		validateHmac(responseBytes, response.hmac());
 		validateSignature(responseBytes, response.signature(), ledgerPublicKey);
 

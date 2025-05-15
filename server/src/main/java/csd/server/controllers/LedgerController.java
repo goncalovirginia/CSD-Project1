@@ -12,10 +12,7 @@ import csd.server.services.LedgerService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -46,6 +43,11 @@ public class LedgerController {
 		this.nonces = new HashSet<>();
 	}
 
+	@GetMapping(value = "/publicKey", produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<String> publicKey() {
+		return ResponseEntity.ok(digitalSignatureService.getPublicKeyBase64());
+	}
+
 	@PostMapping(path = "/createContract", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<CreatedContract> createContract(@RequestBody @Valid CreateContract body) throws IOException, NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
 		byte[] message = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(body.hmacKey()), Base64.getDecoder().decode(body.publicKey())));
@@ -54,11 +56,11 @@ public class LedgerController {
 
 		ledgerService.createContract(body.contract(), body.hmacKey(), body.publicKey());
 
-		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getDecoder().decode(digitalSignatureService.getPublicKeyBase64())));
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract())));
 		String hmac = hmacService.hashToBase64(response, body.hmacKey());
 		String signature = digitalSignatureService.signToBase64(response);
 
-		return ResponseEntity.ok(new CreatedContract(body.contract(), digitalSignatureService.getPublicKeyBase64(), hmac, signature));
+		return ResponseEntity.ok(new CreatedContract(body.contract(), hmac, signature));
 	}
 
 	@PostMapping(path = "/loadMoney", consumes = MediaType.APPLICATION_JSON_VALUE)

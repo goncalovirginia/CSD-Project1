@@ -39,6 +39,10 @@ public class CommandLineApplicationService implements CommandLineRunner {
 		byte[] userID = hashService.hash(email.getBytes(StandardCharsets.UTF_8));
 		System.out.println("UserID: " + Base64.getEncoder().encodeToString(userID));
 
+		System.out.println("Getting ledger server public key...");
+		String ledgerPublicKey = restClientService.getLedgerPublicKey();
+		System.out.println("Public key obtained: " + ledgerPublicKey);
+
 		System.out.println("Use command 'help' to see all commands, and 'quit' to exit the application.");
 
 		String command;
