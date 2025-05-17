@@ -17,10 +17,14 @@ public class LedgerService {
 
 	private final LedgerRepository ledgerRepository;
 	private final LogRepository logRepository;
+	private final BFTLedgerClient<String, Long> bftLedgerClient;
+	private final BFTLedgerServer<String, Long> bftLedgerServer;
 
-	public LedgerService(LedgerRepository ledgerRepository, LogRepository logRepository) {
+	public LedgerService(LedgerRepository ledgerRepository, LogRepository logRepository, BFTLedgerClient<String, Long> bftLedgerClient, BFTLedgerServer<String, Long> bftLedgerServer) {
 		this.ledgerRepository = ledgerRepository;
 		this.logRepository = logRepository;
+		this.bftLedgerClient = bftLedgerClient;
+		this.bftLedgerServer = bftLedgerServer;
 	}
 
 	public LedgerEntity getLedgerEntity(String contract) {
