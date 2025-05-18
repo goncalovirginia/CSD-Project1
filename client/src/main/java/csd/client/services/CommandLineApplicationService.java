@@ -1,6 +1,5 @@
 package csd.client.services;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
@@ -21,14 +20,12 @@ public class CommandLineApplicationService implements CommandLineRunner {
 	private final HashService hashService;
 	private final HMACService hmacService;
 	private final RestClientService restClientService;
-	private final String publicKeyBase64;
 
-	public CommandLineApplicationService(ApplicationContext applicationContext, HashService hashService, HMACService hmacService, RestClientService restClientService, @Value("${crypto.dsa.publicKeyBase64}") String publicKeyBase64) {
+	public CommandLineApplicationService(ApplicationContext applicationContext, HashService hashService, HMACService hmacService, RestClientService restClientService) {
 		this.applicationContext = applicationContext;
 		this.hashService = hashService;
 		this.hmacService = hmacService;
 		this.restClientService = restClientService;
-		this.publicKeyBase64 = publicKeyBase64;
 	}
 
 	@Override
@@ -39,7 +36,7 @@ public class CommandLineApplicationService implements CommandLineRunner {
 		String email = scanner.next();
 		System.out.println("Inputted email: " + email);
 
-		byte[] userID = hashService.hash((email + publicKeyBase64).getBytes(StandardCharsets.UTF_8));
+		byte[] userID = hashService.hash(email.getBytes(StandardCharsets.UTF_8));
 		System.out.println("UserID: " + Base64.getEncoder().encodeToString(userID));
 
 		System.out.println("Getting ledger server public key...");
