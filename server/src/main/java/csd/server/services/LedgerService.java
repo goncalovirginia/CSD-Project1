@@ -2,7 +2,6 @@ package csd.server.services;
 
 import csd.server.exceptions.ContractAlreadyExistsException;
 import csd.server.exceptions.ContractDoesNotExistException;
-import csd.server.exceptions.InsufficientFundsException;
 import csd.server.models.LedgerEntity;
 import csd.server.models.LogEntity;
 import csd.server.repositories.LedgerRepository;
@@ -17,14 +16,14 @@ public class LedgerService {
 
 	private final LedgerRepository ledgerRepository;
 	private final LogRepository logRepository;
-	private final BFTLedgerClient<String, Long> bftLedgerClient;
-	private final BFTLedgerServer<String, Long> bftLedgerServer;
+	private final BFTSMaRTLedgerClient BFTSMaRTLedgerClient;
+	private final BFTSMaRTLedgerServer BFTSMaRTLedgerServer;
 
-	public LedgerService(LedgerRepository ledgerRepository, LogRepository logRepository, BFTLedgerClient<String, Long> bftLedgerClient, BFTLedgerServer<String, Long> bftLedgerServer) {
+	public LedgerService(LedgerRepository ledgerRepository, LogRepository logRepository, BFTSMaRTLedgerClient BFTSMaRTLedgerClient, BFTSMaRTLedgerServer BFTSMaRTLedgerServer) {
 		this.ledgerRepository = ledgerRepository;
 		this.logRepository = logRepository;
-		this.bftLedgerClient = bftLedgerClient;
-		this.bftLedgerServer = bftLedgerServer;
+		this.BFTSMaRTLedgerClient = BFTSMaRTLedgerClient;
+		this.BFTSMaRTLedgerServer = BFTSMaRTLedgerServer;
 	}
 
 	public LedgerEntity getLedgerEntity(String contract) {
@@ -35,22 +34,25 @@ public class LedgerService {
 		if (ledgerRepository.existsByContract(contract))
 			throw new ContractAlreadyExistsException();
 
-		ledgerRepository.save(new LedgerEntity(contract, hmacKey, publicKey));
-		logRepository.save(new LogEntity("CREATE_CONTRACT", contract, null));
+		String bftContract = BFTSMaRTLedgerClient.createContract(contract);
+
+		ledgerRepository.save(new LedgerEntity(bftContract, hmacKey, publicKey));
+		logRepository.save(new LogEntity("CREATE_CONTRACT", bftContract, null));
 	}
 
 	public void loadMoney(String contract, Long value) {
-		ledgerRepository.updateValueByContract(contract, value);
+		Long bftValue = BFTSMaRTLedgerClient.loadMoney(contract, value);
+
+		ledgerRepository.updateValueByContract(contract, bftValue);
 		logRepository.save(new LogEntity("LOAD_MONEY " + value, contract, null));
 	}
 
 	@Transactional
 	public void sendTransaction(String originContract, String destinationContract, Long value) {
-		if (ledgerRepository.withdraw(originContract, value) == 0)
-			throw new InsufficientFundsException();
+		List<Long> bftAccountValues = BFTSMaRTLedgerClient.sendTransaction(originContract, destinationContract, value);
 
-		if (ledgerRepository.deposit(destinationContract, value) == 0)
-			throw new ContractDoesNotExistException();
+		ledgerRepository.updateValueByContract(originContract, bftAccountValues.get(0));
+		ledgerRepository.updateValueByContract(destinationContract, bftAccountValues.get(1));
 
 		logRepository.save(new LogEntity("SEND_TRANSACTION " + value, originContract, destinationContract));
 	}
