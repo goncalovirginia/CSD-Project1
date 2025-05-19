@@ -45,6 +45,7 @@ public class LedgerController {
 
 	@GetMapping(value = "/publicKey", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<String> publicKey() {
+		ledgerService.initBFTSMaRTLedgerClient();
 		return ResponseEntity.ok(digitalSignatureService.getPublicKeyBase64());
 	}
 

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -18,11 +19,13 @@ import java.util.logging.Logger;
 public class BFTSMaRTLedgerServer extends DefaultSingleRecoverable {
 
 	private final Logger logger;
+	private final LedgerService ledgerService;
 	private Map<String, Long> ledger;
 
-	public BFTSMaRTLedgerServer(@Value("${server.id}") int id) {
+	public BFTSMaRTLedgerServer(@Value("${server.id}") int id, LedgerService ledgerService) {
 		this.ledger = new TreeMap<>();
 		this.logger = Logger.getLogger(BFTSMaRTLedgerServer.class.getName());
+		this.ledgerService = ledgerService;
 		new ServiceReplica(id, this, this);
 	}
 
@@ -37,6 +40,8 @@ public class BFTSMaRTLedgerServer extends DefaultSingleRecoverable {
 			switch (reqType) {
 				case CREATE_CONTRACT:
 					originContract = (String) objIn.readObject();
+					String hmacKey = (String) objIn.readObject();
+					String publicKey = (String) objIn.readObject();
 
 					if (ledger.containsKey(originContract))
 						objOut.writeObject(LedgerResponseCode.CONTRACT_ALREADY_EXISTS);
@@ -45,6 +50,9 @@ public class BFTSMaRTLedgerServer extends DefaultSingleRecoverable {
 
 						objOut.writeObject(LedgerResponseCode.OK);
 						objOut.writeObject(originContract);
+
+						logger.log(Level.INFO, "Created contract: " + originContract);
+						this.ledgerService.createContractDB(originContract, hmacKey, publicKey);
 					}
 					hasReply = true;
 					break;
@@ -61,6 +69,9 @@ public class BFTSMaRTLedgerServer extends DefaultSingleRecoverable {
 						objOut.writeObject(LedgerResponseCode.OK);
 						objOut.writeObject(originContract);
 						objOut.writeObject(newValue);
+
+						logger.log(Level.INFO, "Loaded money: " + originContract + " " + newValue);
+						this.ledgerService.loadMoneyDB(originContract, newValue);
 					}
 					hasReply = true;
 					break;
@@ -88,6 +99,9 @@ public class BFTSMaRTLedgerServer extends DefaultSingleRecoverable {
 						objOut.writeObject(originValue);
 						objOut.writeObject(destinationContract);
 						objOut.writeObject(destinationValue);
+
+						logger.log(Level.INFO, "Sent transaction: " + originContract + " -> " + destinationContract + " " + value);
+						this.ledgerService.sendTransactionDB(originContract, destinationContract, List.of(originValue, destinationValue), value);
 					}
 					hasReply = true;
 					break;

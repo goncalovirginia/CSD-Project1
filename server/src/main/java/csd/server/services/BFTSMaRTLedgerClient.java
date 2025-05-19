@@ -10,20 +10,32 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.util.List;
+import java.util.logging.Logger;
 
 @Service
 public class BFTSMaRTLedgerClient {
 
-	private final ServiceProxy serviceProxy;
+	private final int id;
+	private final Logger logger;
+	private ServiceProxy serviceProxy;
 
 	public BFTSMaRTLedgerClient(@Value("${server.id}") int id) {
-		this.serviceProxy = new ServiceProxy(id);
+		this.id = id;
+		this.logger = Logger.getLogger(BFTSMaRTLedgerClient.class.getName());
 	}
 
-	public String createContract(String contract) {
+	public void init() {
+		if (this.serviceProxy != null) return;
+		this.serviceProxy = new ServiceProxy(id);
+		this.logger.info("Initialized BFTSMaRTLedgerClient " + id);
+	}
+
+	public String createContract(String contract, String hmacKey, String publicKey) {
 		try (ByteArrayOutputStream byteOut = new ByteArrayOutputStream(); ObjectOutput objOut = new ObjectOutputStream(byteOut)) {
 			objOut.writeObject(BFTSMaRTLedgerServer.LedgerRequestType.CREATE_CONTRACT);
 			objOut.writeObject(contract);
+			objOut.writeObject(hmacKey);
+			objOut.writeObject(publicKey);
 
 			objOut.flush();
 			byteOut.flush();

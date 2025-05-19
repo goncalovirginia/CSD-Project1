@@ -1,12 +1,10 @@
 package csd.server.services;
 
-import csd.server.exceptions.ContractAlreadyExistsException;
 import csd.server.exceptions.ContractDoesNotExistException;
 import csd.server.models.LedgerEntity;
 import csd.server.models.LogEntity;
 import csd.server.repositories.LedgerRepository;
 import csd.server.repositories.LogRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -18,13 +16,15 @@ public class LedgerService {
 	private final LedgerRepository ledgerRepository;
 	private final LogRepository logRepository;
 	private final BFTSMaRTLedgerClient BFTSMaRTLedgerClient;
-	private final BFTSMaRTLedgerServer BFTSMaRTLedgerServer;
 
-	public LedgerService(LedgerRepository ledgerRepository, LogRepository logRepository, BFTSMaRTLedgerClient BFTSMaRTLedgerClient, BFTSMaRTLedgerServer BFTSMaRTLedgerServer) {
+	public LedgerService(LedgerRepository ledgerRepository, LogRepository logRepository, BFTSMaRTLedgerClient BFTSMaRTLedgerClient) {
 		this.ledgerRepository = ledgerRepository;
 		this.logRepository = logRepository;
 		this.BFTSMaRTLedgerClient = BFTSMaRTLedgerClient;
-		this.BFTSMaRTLedgerServer = BFTSMaRTLedgerServer;
+	}
+
+	public void initBFTSMaRTLedgerClient() {
+		BFTSMaRTLedgerClient.init();
 	}
 
 	public LedgerEntity getLedgerEntity(String contract) {
@@ -32,37 +32,31 @@ public class LedgerService {
 	}
 
 	public void createContract(String contract, String hmacKey, String publicKey) {
-		String bftContract = BFTSMaRTLedgerClient.createContract(contract);
-
-		createContractAsync(bftContract, hmacKey, publicKey);
+		BFTSMaRTLedgerClient.createContract(contract, hmacKey, publicKey);
 	}
 
 	@Async
-	protected void createContractAsync(String contract, String hmacKey, String publicKey) {
+	public void createContractDB(String contract, String hmacKey, String publicKey) {
 		ledgerRepository.save(new LedgerEntity(contract, hmacKey, publicKey));
 		logRepository.save(new LogEntity("CREATE_CONTRACT", contract, null));
 	}
 
 	public void loadMoney(String contract, Long value) {
-		Long bftValue = BFTSMaRTLedgerClient.loadMoney(contract, value);
-
-		loadMoneyAsync(contract, bftValue);
+		BFTSMaRTLedgerClient.loadMoney(contract, value);
 	}
 
 	@Async
-	protected void loadMoneyAsync(String contract, Long value) {
+	public void loadMoneyDB(String contract, Long value) {
 		ledgerRepository.updateValueByContract(contract, value);
 		logRepository.save(new LogEntity("LOAD_MONEY " + value, contract, null));
 	}
 
 	public void sendTransaction(String originContract, String destinationContract, Long value) {
-		List<Long> bftAccountValues = BFTSMaRTLedgerClient.sendTransaction(originContract, destinationContract, value);
-
-		sendTransactionAsync(originContract, destinationContract, bftAccountValues, value);
+		BFTSMaRTLedgerClient.sendTransaction(originContract, destinationContract, value);
 	}
 
 	@Async
-	protected void sendTransactionAsync(String originContract, String destinationContract, List<Long> bftAccountValues, Long value) {
+	public void sendTransactionDB(String originContract, String destinationContract, List<Long> bftAccountValues, Long value) {
 		ledgerRepository.updateValueByContract(originContract, bftAccountValues.get(0));
 		ledgerRepository.updateValueByContract(destinationContract, bftAccountValues.get(1));
 		logRepository.save(new LogEntity("SEND_TRANSACTION " + value, originContract, destinationContract));

@@ -1,4 +1,5 @@
-java run configurations: --spring.config.name=application3 -Djava.security.properties="./config/java.security" -Dlogback.configurationFile="./config/logback.xml" -cp "lib/*"
+java run configurations: --spring.config.name=application3 -Djava.security.properties="./config/java.security"
+-Dlogback.configurationFile="./config/logback.xml" -cp "lib/*"
 
 mvn clean package -Dmaven.test.skip
 
