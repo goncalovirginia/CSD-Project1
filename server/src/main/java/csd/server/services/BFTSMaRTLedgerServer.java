@@ -23,9 +23,10 @@ public class BFTSMaRTLedgerServer extends DefaultSingleRecoverable {
 	private Map<String, Long> ledger;
 
 	public BFTSMaRTLedgerServer(@Value("${server.id}") int id, LedgerService ledgerService) {
-		this.ledger = new TreeMap<>();
-		this.logger = Logger.getLogger(BFTSMaRTLedgerServer.class.getName());
 		this.ledgerService = ledgerService;
+		this.ledger = new TreeMap<>();
+		this.ledgerService.getLedger().forEach(l -> this.ledger.put(l.getContract(), l.getValue()));
+		this.logger = Logger.getLogger(BFTSMaRTLedgerServer.class.getName());
 		new ServiceReplica(id, this, this);
 	}
 
