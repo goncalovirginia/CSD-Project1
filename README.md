@@ -19,6 +19,8 @@ To easily configure and run 4 servers simultaneously via IntelliJ, go to `Run > 
 
 All 4 servers are now easily and simultaneously executable through the Services tab, located at the bottom of the IDE left sidebar. 
 
+If needed, add the `server/src/main/resources/lib/BFT-SMaRt.jar` as a JAR dependency via `File > Project Structure... > Modules > server > dependencies`.
+
 ### Compiling, packaging, and running JAR
 
 `mvn clean package -Dmaven.test.skip`
