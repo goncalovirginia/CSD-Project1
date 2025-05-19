@@ -7,6 +7,7 @@ import csd.server.models.LogEntity;
 import csd.server.repositories.LedgerRepository;
 import csd.server.repositories.LogRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -31,29 +32,39 @@ public class LedgerService {
 	}
 
 	public void createContract(String contract, String hmacKey, String publicKey) {
-		if (ledgerRepository.existsByContract(contract))
-			throw new ContractAlreadyExistsException();
-
 		String bftContract = BFTSMaRTLedgerClient.createContract(contract);
 
-		ledgerRepository.save(new LedgerEntity(bftContract, hmacKey, publicKey));
-		logRepository.save(new LogEntity("CREATE_CONTRACT", bftContract, null));
+		createContractAsync(bftContract, hmacKey, publicKey);
+	}
+
+	@Async
+	protected void createContractAsync(String contract, String hmacKey, String publicKey) {
+		ledgerRepository.save(new LedgerEntity(contract, hmacKey, publicKey));
+		logRepository.save(new LogEntity("CREATE_CONTRACT", contract, null));
 	}
 
 	public void loadMoney(String contract, Long value) {
 		Long bftValue = BFTSMaRTLedgerClient.loadMoney(contract, value);
 
-		ledgerRepository.updateValueByContract(contract, bftValue);
+		loadMoneyAsync(contract, bftValue);
+	}
+
+	@Async
+	protected void loadMoneyAsync(String contract, Long value) {
+		ledgerRepository.updateValueByContract(contract, value);
 		logRepository.save(new LogEntity("LOAD_MONEY " + value, contract, null));
 	}
 
-	@Transactional
 	public void sendTransaction(String originContract, String destinationContract, Long value) {
 		List<Long> bftAccountValues = BFTSMaRTLedgerClient.sendTransaction(originContract, destinationContract, value);
 
+		sendTransactionAsync(originContract, destinationContract, bftAccountValues, value);
+	}
+
+	@Async
+	protected void sendTransactionAsync(String originContract, String destinationContract, List<Long> bftAccountValues, Long value) {
 		ledgerRepository.updateValueByContract(originContract, bftAccountValues.get(0));
 		ledgerRepository.updateValueByContract(destinationContract, bftAccountValues.get(1));
-
 		logRepository.save(new LogEntity("SEND_TRANSACTION " + value, originContract, destinationContract));
 	}
 

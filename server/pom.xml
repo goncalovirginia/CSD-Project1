@@ -80,11 +80,7 @@
             <version>1.16.0</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.github.bft-smart</groupId>
-            <artifactId>library</artifactId>
-            <version>v1.2</version>
-        </dependency>
+
     </dependencies>
 
     <build>
