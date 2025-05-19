@@ -35,7 +35,7 @@ public class LedgerService {
 		BFTSMaRTLedgerClient.createContract(contract, hmacKey, publicKey);
 	}
 
-	@Async
+	@Async("queueExecutor")
 	public void createContractDB(String contract, String hmacKey, String publicKey) {
 		ledgerRepository.save(new LedgerEntity(contract, hmacKey, publicKey));
 		logRepository.save(new LogEntity("CREATE_CONTRACT", contract, null));
@@ -45,7 +45,7 @@ public class LedgerService {
 		BFTSMaRTLedgerClient.loadMoney(contract, value);
 	}
 
-	@Async
+	@Async("queueExecutor")
 	public void loadMoneyDB(String contract, Long value) {
 		ledgerRepository.updateValueByContract(contract, value);
 		logRepository.save(new LogEntity("LOAD_MONEY " + value, contract, null));
@@ -55,7 +55,7 @@ public class LedgerService {
 		BFTSMaRTLedgerClient.sendTransaction(originContract, destinationContract, value);
 	}
 
-	@Async
+	@Async("queueExecutor")
 	public void sendTransactionDB(String originContract, String destinationContract, List<Long> bftAccountValues, Long value) {
 		ledgerRepository.updateValueByContract(originContract, bftAccountValues.get(0));
 		ledgerRepository.updateValueByContract(destinationContract, bftAccountValues.get(1));
