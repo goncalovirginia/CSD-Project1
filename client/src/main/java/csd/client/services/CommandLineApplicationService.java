@@ -8,10 +8,8 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 @Service
 public class CommandLineApplicationService implements CommandLineRunner {
@@ -117,7 +115,11 @@ public class CommandLineApplicationService implements CommandLineRunner {
 					System.out.println("gettotalvalue <contract1> <contract2> ... <contractN>");
 					System.out.println("getgloballedgervalue");
 					System.out.println("getledger");
+					System.out.println("test");
 					System.out.println("quit");
+					break;
+				case "test":
+					doTest(userID);
 					break;
 				case "quit":
 					break;
@@ -128,6 +130,85 @@ public class CommandLineApplicationService implements CommandLineRunner {
 		} while (!command.equals("quit"));
 
 		SpringApplication.exit(applicationContext, () -> 0);
+	}
+
+	private void doTest(byte[] userID) throws Exception {
+		List<Map.Entry<String, Long>> contracts = new ArrayList<>();
+		List<Long> latencies = new ArrayList<>();
+
+		for (int i = 0; i < 10; i++) {
+			ByteArrayOutputStream userIDAndTimestamp = new ByteArrayOutputStream();
+			userIDAndTimestamp.write(userID);
+			userIDAndTimestamp.write(Instant.now().toString().getBytes(StandardCharsets.UTF_8));
+			byte[] newContract = hmacService.hash(userIDAndTimestamp.toByteArray());
+			String contractBase64 = Base64.getEncoder().encodeToString(newContract);
+			Long start = System.currentTimeMillis();
+			String responseContract = restClientService.createContract(contractBase64);
+			Long end = System.currentTimeMillis();
+			latencies.add(end - start);
+			contracts.add(new AbstractMap.SimpleEntry<>(responseContract, 0L));
+			System.out.println("Created contract " + responseContract);
+
+			Thread.sleep(100L);
+
+			start = System.currentTimeMillis();
+			long response1 = restClientService.loadMoney(responseContract, 1000L);
+			end = System.currentTimeMillis();
+			latencies.add(end - start);
+			System.out.println(response1 == Long.MIN_VALUE ? "Error: null response" : "Successfully loaded " + response1 + " into contract " + responseContract);
+			contracts.get(i).setValue(response1);
+		}
+
+		int threadCount = 1000;
+		CountDownLatch latch = new CountDownLatch(threadCount);
+		Long startAll = System.currentTimeMillis();
+		for (int i = 0; i < threadCount; i++) {
+			new Thread(() -> {
+				try {
+					Thread.sleep((long) (Math.random() * 5000));
+
+					double random2 = Math.random() * 2;
+
+					if (random2 < 1.0) {
+						Map.Entry<String, Long> contract = contracts.get((int) (Math.random() * contracts.size()));
+						long value = (long) (Math.random() * 1000L + 10L);
+						System.out.println("Loading money onto contract: " + contract + " with value: " + value);
+						Long start = System.currentTimeMillis();
+						long response1 = restClientService.loadMoney(contract.getKey(), value);
+						Long end = System.currentTimeMillis();
+						latencies.add(end - start);
+						System.out.println(response1 == Long.MIN_VALUE ? "Error: null response" : "Successfully loaded " + response1 + " into contract " + contract);
+						if (response1 != Long.MIN_VALUE) contract.setValue(response1);
+					} else {
+						Map.Entry<String, Long> originContract = contracts.get((int) (Math.random() * contracts.size()));
+						Map.Entry<String, Long> destinationContract = contracts.get((int) (Math.random() * contracts.size()));
+						long value1;
+						do {
+							value1 = (long) (Math.random() * 10 + 1L);
+						} while (value1 > originContract.getValue());
+						System.out.println("Sending transaction from: " + originContract + " to: " + destinationContract + " with value: " + value1);
+						Long start = System.currentTimeMillis();
+						long response2 = restClientService.sendTransaction(originContract.getKey(), destinationContract.getKey(), value1);
+						Long end = System.currentTimeMillis();
+						latencies.add(end - start);
+						System.out.println(response2 == Long.MIN_VALUE ? "Error: null response" : "Successfully sent " + response2 + " from " + originContract + " to " + destinationContract);
+						if (response2 != Long.MIN_VALUE) {
+							originContract.setValue(originContract.getValue() - value1);
+							destinationContract.setValue(destinationContract.getValue() + value1);
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				latch.countDown();
+			}).start();
+		}
+
+		latch.await();
+		Long endAll = System.currentTimeMillis();
+		System.out.println("Finished all requests.");
+		System.out.println("Average latency: " + latencies.stream().mapToLong(Long::longValue).average().orElse(0.0));
+		System.out.println("Average throughput: " + (threadCount * 1000L) / (endAll - startAll));
 	}
 
 }
