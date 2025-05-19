@@ -66,8 +66,8 @@ public class LedgerService {
 		return ledgerRepository.getLedgerByContract(contract).orElseThrow(ContractDoesNotExistException::new).getValue();
 	}
 
-	public String getExtract(String contract) {
-		return ledgerRepository.getLedgerByContract(contract).orElseThrow(ContractDoesNotExistException::new).toString();
+	public List<LogEntity> getExtract(String contract) {
+		return logRepository.getLogEntitiesByContract(contract);
 	}
 
 	public long getTotalValue(List<String> contracts) {
@@ -78,8 +78,8 @@ public class LedgerService {
 		return ledgerRepository.getGlobalLedgerValue();
 	}
 
-	public List<String> getLedger() {
-		return ledgerRepository.getAll().stream().map(LedgerEntity::toString).toList();
+	public List<LedgerEntity> getLedger() {
+		return ledgerRepository.getAll();
 	}
 
 }

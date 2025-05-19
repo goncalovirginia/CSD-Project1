@@ -6,6 +6,7 @@ import csd.server.exceptions.InvalidHmacException;
 import csd.server.exceptions.InvalidSignatureException;
 import csd.server.exceptions.NonceReplayException;
 import csd.server.models.LedgerEntity;
+import csd.server.models.LogEntity;
 import csd.server.services.DigitalSignatureService;
 import csd.server.services.HMACService;
 import csd.server.services.LedgerService;
@@ -122,13 +123,14 @@ public class LedgerController {
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
-		String extract = ledgerService.getExtract(body.contract());
+		List<String> extract = ledgerService.getExtract(body.contract()).stream().map(LogEntity::toString).toList();
+		String extractString = String.join("\n", extract);
 
-		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getEncoder().encode(extract.getBytes(StandardCharsets.UTF_8))));
+		byte[] response = appendByteArrays(List.of(Base64.getDecoder().decode(body.contract()), Base64.getEncoder().encode(extractString.getBytes(StandardCharsets.UTF_8))));
 		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());
 		String signature = digitalSignatureService.signToBase64(response);
 
-		return ResponseEntity.ok(new GotExtract(body.contract(), extract, hmac, signature));
+		return ResponseEntity.ok(new GotExtract(body.contract(), extractString, hmac, signature));
 	}
 
 	@PostMapping(path = "/getTotalValue", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -170,7 +172,7 @@ public class LedgerController {
 		validateHmac(message, body.hmac(), ledgerEntity.getHmacKey());
 		validateSignature(message, body.signature(), ledgerEntity.getPublicKey());
 
-		List<String> ledger = ledgerService.getLedger();
+		List<String> ledger = ledgerService.getLedger().stream().map(LedgerEntity::toString).toList();
 
 		byte[] response = appendByteArrays(List.of(message, appendByteArrays(ledger.stream().map(line -> Base64.getEncoder().encode(line.getBytes(StandardCharsets.UTF_8))).toList())));
 		String hmac = hmacService.hashToBase64(response, ledgerEntity.getHmacKey());

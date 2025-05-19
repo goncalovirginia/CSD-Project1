@@ -82,8 +82,10 @@ public class CommandLineApplicationService implements CommandLineRunner {
 				case "getextract":
 					String contract2 = scanner.next();
 					String extract = restClientService.getExtract(contract2);
-					String[] parts = extract.split(":");
-					System.out.println("Contract: " + parts[0] + "    Balance: " + parts[1] + "    Public Key: " + parts[2]);
+					for (String line : extract.split("\n")) {
+						String[] parts = line.split(":");
+						System.out.println("Order: " + parts[0] + "    Operation: " + parts[1] + "    Origin Account: " + parts[2] + "    Destination Account: " + parts[3]);
+					}
 					break;
 				case "gettotalvalue":
 					List<String> contractList = Arrays.stream(scanner.nextLine().trim().split(" ")).toList();
